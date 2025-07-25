@@ -10,6 +10,10 @@ Parameters:
     AllowedValues:
       - dev
       - prod
+  AllowedOrigin:
+    Type: String
+    Default: '*'
+    Description: Allowed CORS origin for API Gateway
 
 Globals:
   Function:
@@ -28,8 +32,23 @@ Globals:
       CostCenter: YouTubeProcessing
       Service: Lambda
       Owner: DevTeam
+  Api:
+    Cors:
+      AllowMethods: "'POST, OPTIONS'"
+      AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      AllowOrigin: "'http://yt-transcribe-frontend-dev-825765413106.s3-website.eu-west-2.amazonaws.com'"
+      AllowCredentials: "'false'"
 
 Resources:
+  # API Gateway
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Environment
+      Name: !Sub yt-transcribe-api-${Environment}
+      EndpointConfiguration: REGIONAL
+      TracingEnabled: true
+
   # Lambda layer for dependencies
   DependenciesLayer:
     Type: AWS::Serverless::LayerVersion
@@ -44,13 +63,24 @@ Resources:
   # S3 bucket for storing audio files
   AudioBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BucketName: !Sub yt-transcribe-audio-${Environment}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       LifecycleConfiguration:
         Rules:
           - Id: DeleteOldFiles
             Status: Enabled
             ExpirationInDays: 7
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
       Tags:
         - Key: Project
           Value: YT-Transcribe
@@ -79,6 +109,13 @@ Resources:
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref AudioBucket
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /download
+            Method: POST
+            RestApiId: !Ref Api
       Tags:
         Project: YT-Transcribe
         Environment: !Ref Environment
@@ -95,6 +132,9 @@ Resources:
       Handler: app.lambda_handler
       Layers:
         - !Ref DependenciesLayer
+      Environment:
+        Variables:
+          AUDIO_BUCKET: !Ref AudioBucket
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref AudioBucket
@@ -116,6 +156,10 @@ Outputs:
   AudioBucketName:
     Description: Name of the S3 bucket used for audio files
     Value: !Ref AudioBucket
+
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/
 
   DownloadVideoFunctionArn:
     Description: ARN of the Download Video Lambda function
