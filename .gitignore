@@ -1,0 +1,42 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build output
+dist/
+build/ 
+# Python virtual environments and build artefacts
+backend/venv/
+**/__pycache__/
+backend/**/package/
+
+# AWS SAM build output
+.aws-sam/
+
+# Deployment archives
+*.zip 
+
+# Dependencies that should be installed via pip
+backend/layer/python/yt_dlp/
+
+# Temporary files
+response.json
+test-event.json 

@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: YT-Transcribe Backend v1 - Decoupled video processing and transcription
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 900     # 15 minutes
+    MemorySize: 1024
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        REGION: !Ref AWS::Region
+    Tags:
+      Project: YT-Transcribe
+      Environment: !Ref Environment
+      CostCenter: YouTubeProcessing
+      Service: Lambda
+      Owner: DevTeam
+
+Resources:
+  # Lambda layer for dependencies
+  DependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub yt-transcribe-dependencies-${Environment}
+      Description: Dependencies for YT-Transcribe Lambda functions
+      ContentUri: ../../backend/layer/
+      CompatibleRuntimes:
+        - python3.12
+      RetentionPolicy: Retain
+
+  # S3 bucket for storing audio files
+  AudioBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub yt-transcribe-audio-${Environment}-${AWS::AccountId}
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldFiles
+            Status: Enabled
+            ExpirationInDays: 7
+      Tags:
+        - Key: Project
+          Value: YT-Transcribe
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: CostCenter
+          Value: YouTubeProcessing
+        - Key: Service
+          Value: S3
+        - Key: Component
+          Value: AudioStorage
+        - Key: DataRetention
+          Value: 7days
+
+  # Lambda function for downloading videos
+  DownloadVideoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../backend/download-video/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref DependenciesLayer
+      Environment:
+        Variables:
+          AUDIO_BUCKET: !Ref AudioBucket
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref AudioBucket
+      Tags:
+        Project: YT-Transcribe
+        Environment: !Ref Environment
+        CostCenter: YouTubeProcessing
+        Service: Lambda
+        Component: VideoDownloader
+        Function: Download
+
+  # Lambda function for transcribing audio
+  TranscribeAudioFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../backend/transcribe-audio/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref DependenciesLayer
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref AudioBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - transcribe:StartTranscriptionJob
+                - transcribe:GetTranscriptionJob
+              Resource: '*'
+      Tags:
+        Project: YT-Transcribe
+        Environment: !Ref Environment
+        CostCenter: YouTubeProcessing
+        Service: Lambda
+        Component: AudioTranscriber
+        Function: Transcribe
+
+Outputs:
+  AudioBucketName:
+    Description: Name of the S3 bucket used for audio files
+    Value: !Ref AudioBucket
+
+  DownloadVideoFunctionArn:
+    Description: ARN of the Download Video Lambda function
+    Value: !GetAtt DownloadVideoFunction.Arn
+
+  TranscribeAudioFunctionArn:
+    Description: ARN of the Transcribe Audio Lambda function
+    Value: !GetAtt TranscribeAudioFunction.Arn 
