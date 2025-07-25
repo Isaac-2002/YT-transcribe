@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube Summarizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-start: #8b5cf6; /* purple-500 */
+      --primary-end: #c084fc;   /* purple-300 */
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: #ffffff;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      align-items: center;
+    }
+    .container {
+      text-align: center;
+      padding: 3rem 1rem;
+      width: 100%;
+      max-width: 600px;
+    }
+    .play-icon {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 1.5rem auto;
+      background: linear-gradient(135deg, var(--primary-start), var(--primary-end));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .play-icon svg {
+      fill: #fff;
+      width: 36px;
+      height: 36px;
+    }
+    h1 {
+      font-size: 2.25rem;
+      margin: 0 0 0.75rem 0;
+      background: linear-gradient(135deg, var(--primary-start), var(--primary-end));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 1.125rem;
+      margin-bottom: 2.5rem;
+      color: #555;
+    }
+    .input-card {
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      border-radius: 1rem;
+      padding: 2rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .input-card input {
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      border: 1px solid #d1d5db; /* gray-300 */
+      border-radius: 0.5rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-card input:focus {
+      border-color: var(--primary-start);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, var(--primary-start), var(--primary-end));
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:hover {
+      opacity: 0.9;
+    }
+    #result {
+      margin-top: 2rem;
+      text-align: left;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="play-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+    </div>
+    <h1>YouTube Summarizer</h1>
+    <p class="subtitle">Get AI-powered summaries of any YouTube video in seconds</p>
+
+    <div class="notice-card">
+      <p><strong>Note:</strong> Only public YouTube videos are supported.</p>
+      <p class="notice-details">Private, age-restricted, or members-only videos cannot be processed.</p>
+    </div>
+
+    <div class="input-card">
+      <input type="url" id="youtubeUrl" placeholder="YouTube URL" required />
+      <button class="btn" id="generateBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path fill="none" d="M0 0h24v24H0z"/>
+          <path fill="currentColor" d="M13 2l3.293 3.293-9.9 9.9-3.394 1.131 1.131-3.394 9.9-9.9L13 2zm5.618.793l2.586 2.586a1 1 0 010 1.414l-1.586 1.586-4-4 1.586-1.586a1 1 0 011.414 0zM2 20h2.586l9.9-9.9-2.586-2.586L2 17.414V20z"/>
+        </svg>
+        Generate Summary
+      </button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const API_ENDPOINT = 'https://nar05nwgtd.execute-api.eu-west-2.amazonaws.com/dev/download';
+    
+    async function triggerSummary(url) {
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ youtube_url: url })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    }
+
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      const input = document.getElementById('youtubeUrl');
+      const resultDiv = document.getElementById('result');
+      const btn = document.getElementById('generateBtn');
+      const url = (input.value || '').trim();
+      
+      if (!url) {
+        alert('Please enter a YouTube URL');
+        input.focus();
+        return;
+      }
+
+      // Simple URL validation (basic check)
+      const ytRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/i;
+      if (!ytRegex.test(url)) {
+        alert('Please enter a valid YouTube URL');
+        input.focus();
+        return;
+      }
+
+      // Clear previous results
+      resultDiv.innerHTML = `
+        <div style="text-align: center; padding: 2rem;">
+          <div class="loading-spinner"></div>
+          <p>Processing your video...</p>
+        </div>
+      `;
+      
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `
+        <svg class="spinner" viewBox="0 0 50 50">
+          <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5"></circle>
+        </svg>
+        Processing...
+      `;
+
+      try {
+        const result = await triggerSummary(url);
+        resultDiv.innerHTML = `
+          <div class="result-card">
+            <p style="color: #059669;">✅ Video download initiated!</p>
+            <p><strong>Status:</strong> ${result.status || 'Processing'}</p>
+            ${result.message ? `<p>${result.message}</p>` : ''}
+            ${result.video_id ? `<p><strong>Video ID:</strong> ${result.video_id}</p>` : ''}
+          </div>
+        `;
+      } catch (err) {
+        console.error(err);
+        resultDiv.innerHTML = `
+          <div class="result-card error">
+            <p style="color: #dc2626;">❌ Error occurred</p>
+            <p>${err.message}</p>
+            <button class="btn retry-btn" onclick="document.getElementById('generateBtn').click()">
+              Try Again
+            </button>
+          </div>
+        `;
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    });
+  </script>
+  <style>
+    /* Add these styles to your existing CSS */
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 1rem auto;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid var(--primary-start);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    .spinner {
+      animation: spin 1s linear infinite;
+      width: 20px;
+      height: 20px;
+      margin-right: 8px;
+    }
+
+    .spinner circle {
+      opacity: 0.25;
+    }
+
+    .spinner circle:nth-child(1) {
+      animation: spin 1s linear infinite;
+      opacity: 1;
+      stroke-dasharray: 120;
+      stroke-dashoffset: 60;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .result-card {
+      background: white;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      margin-top: 2rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .notice-card {
+      background: #f3f4f6;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.875rem;
+      color: #4b5563;
+    }
+    
+    .notice-details {
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+
+    .result-card.error {
+      border-left: 4px solid #dc2626;
+      background: #fef2f2;
+    }
+
+    .retry-btn {
+      margin-top: 1rem;
+      background: #dc2626;
+    }
+
+    .retry-btn:hover {
+      background: #b91c1c;
+    }
+  </style>
+</body>
+</html> 
